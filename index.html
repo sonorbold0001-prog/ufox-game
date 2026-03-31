@@ -27,12 +27,11 @@ const asteroid = new Image(); asteroid.src = "astroid.png";
 const music = new Audio("music.mp3");
 music.loop = true;
 document.addEventListener("click", () => music.play(), {once:true});
-
-// CONSTANTS
-const SMOOTH = 0.4;
-const MAX_SPEED = 6;
-const BOOST_MULT = 2;
-
+    
+const SMOOTH = 0.52;        // same as Python
+const MAX_SPEED = 8;        // same as Python
+const BOOST_MULT = 2.0;     // exact match
+const BASE_SPEED = 2.5;     // from Python PIPE_SPEED
 // PLAYER
 let bird = { x:120, y:360, vel:0, boostEnd:0 };
 
@@ -41,10 +40,12 @@ let input = 0;
 
 // GAME
 let pipes = [];
+let lastTime = Date.now();
 let score = 0;
 let level = 1;
 let gameOver = false;
-
+let startTime = Date.now();
+  
 // BACKGROUND STARS
 let stars = [];
 for(let i=0;i<60;i++){
@@ -67,27 +68,44 @@ setInterval(spawnPipe,2200);
 function updateLevel(){
     level = 1 + Math.floor(score/10);
 }
+let now = Date.now();
+let delta = (now - lastTime) / 16.67;
+lastTime = now;
 
-// UPDATE
-function update(){
-    if(gameOver) return;
+updateLevel();
 
-    let now = Date.now();
-    updateLevel();
-
-    let boosting = now < bird.boostEnd;
+let boosting = now < bird.boostEnd;
 
     let target = input * MAX_SPEED * (boosting ? BOOST_MULT : 1);
     bird.vel += (target - bird.vel) * SMOOTH;
-    bird.y += bird.vel;
+    bird.y += bird.vel * delta;
 
-    pipes.forEach(p=>{
-   p.x -= 2 + level*0.2;
+pipes.forEach(p=>{
 
-        if(!p.passed && p.x < bird.x){
-            score++;
-            p.passed=true;
-        }
+    let elapsed = (Date.now() - startTime) / 10000;
+    let speed = (BASE_SPEED + elapsed) * (0.45 + (level - 1) * 0.2);
+
+    p.wave = (p.wave || Math.random()*Math.PI*2) + 0.05;
+    let waveOffset = Math.sin(p.wave) * 18;
+
+    p.x -= speed * delta;
+    p.top += waveOffset * 0.1;
+
+    // ✅ MOVE THIS INSIDE
+    if(!p.passed && p.x < bird.x){
+        score++;
+        p.passed = true;
+    }
+
+    // ✅ AND THIS
+    if(
+        bird.x > p.x && bird.x < p.x+70 &&
+        (bird.y < p.top || bird.y > p.top+p.gap)
+    ){
+        gameOver = true;
+    }
+
+});
 
         if(
             bird.x > p.x && bird.x < p.x+70 &&
