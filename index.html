@@ -4,67 +4,93 @@
 <meta charset="UTF-8">
 <title>UFOX</title>
 <style>
-body { margin:0; background:black; overflow:hidden; font-family:Arial; }
-canvas { display:block; margin:auto; touch-action:none; }
+body {
+    margin:0;
+    background:black;
+    overflow:hidden;
+    font-family:Arial;
+}
+canvas {
+    display:block;
+    margin:auto;
+    touch-action:none;
+}
 </style>
 </head>
 <body>
+
 <canvas id="game"></canvas>
 
 <script>
+// ================== SETUP ==================
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
 canvas.width = 480;
 canvas.height = 720;
 
-// ASSETS
-const ufo = new Image(); ufo.src = "ufo.png";
-const boosted = new Image(); boosted.src = "boosted_ufo.png";
-const asteroid = new Image(); asteroid.src = "astroid.png";
+// ================== ASSETS ==================
+const ufo = new Image();
+ufo.src = "ufo.png";
 
-// SOUND
+const boosted = new Image();
+boosted.src = "boosted_ufo.png";
+
+const asteroid = new Image();
+asteroid.src = "astroid.png";
+
+// ================== SOUND ==================
 const music = new Audio("music.mp3");
 music.loop = true;
 document.addEventListener("click", () => music.play(), {once:true});
 
-// CONSTANTS
+// ================== CONSTANTS ==================
 const SMOOTH = 0.52;
 const MAX_SPEED = 8;
 const BOOST_MULT = 2.0;
 const BASE_SPEED = 2.5;
 
-// GAME STATE
+// ================== GAME STATE ==================
 let bird = { x:120, y:360, vel:0, boostEnd:0 };
+
 let pipes = [];
 let input = 0;
 let score = 0;
 let level = 1;
+let bestScore = localStorage.getItem("ufox_best") || 0;
+
 let gameState = "menu";
 
 let lastTime = Date.now();
 let startTime = Date.now();
-let mobileMode = false;
 
-// STARS
+let mobileMode = false;
+let shake = 0;
+
+// ================== STARS ==================
 let stars = [];
 for(let i=0;i<80;i++){
     stars.push({
-        x: Math.random()*480,
-        y: Math.random()*720,
+        x: Math.random()*canvas.width,
+        y: Math.random()*canvas.height,
         size: Math.random()*2
     });
 }
 
-// SPAWN
+// ================== SPAWN ==================
 function spawnPipe(){
     let gap = 220 + Math.random()*100;
     let top = Math.random()*(canvas.height-gap);
-    pipes.push({x:480, top:top, gap:gap, passed:false});
+    pipes.push({
+        x: canvas.width,
+        top: top,
+        gap: gap,
+        passed: false
+    });
 }
 setInterval(spawnPipe,2200);
 
-// RESET
+// ================== RESET ==================
 function resetGame(){
     bird.y = 360;
     bird.vel = 0;
@@ -74,7 +100,17 @@ function resetGame(){
     startTime = Date.now();
 }
 
-// UPDATE
+// ================== GAME OVER ==================
+function gameOver(){
+    if(score > bestScore){
+        bestScore = score;
+        localStorage.setItem("ufox_best", bestScore);
+    }
+    shake = 10;
+    gameState = "gameover";
+}
+
+// ================== UPDATE ==================
 function update(){
 
     if(gameState !== "playing") return;
@@ -83,7 +119,7 @@ function update(){
     let delta = (now - lastTime) / 16.67;
     lastTime = now;
 
-    level = 1 + Math.floor(score/10);
+    level = 1 + Math.floor(score / 10);
 
     let boosting = now < bird.boostEnd;
 
@@ -91,7 +127,8 @@ function update(){
     bird.vel += (target - bird.vel) * SMOOTH;
     bird.y += bird.vel * delta;
 
-    pipes.forEach(p=>{
+    pipes.forEach(p => {
+
         let elapsed = (Date.now() - startTime) / 10000;
         let speed = (BASE_SPEED + elapsed) * (0.45 + (level - 1) * 0.2);
 
@@ -107,37 +144,48 @@ function update(){
         }
 
         if(
-            bird.x > p.x && bird.x < p.x+70 &&
-            (bird.y < p.top || bird.y > p.top+p.gap)
+            bird.x > p.x && bird.x < p.x + 70 &&
+            (bird.y < p.top || bird.y > p.top + p.gap)
         ){
-            gameState = "gameover";
+            gameOver();
         }
     });
 
-    pipes = pipes.filter(p=>p.x>-80);
+    pipes = pipes.filter(p => p.x > -80);
 
     if(bird.y < 0 || bird.y > canvas.height){
-        gameState = "gameover";
+        gameOver();
     }
 
-    stars.forEach(s=>{
+    stars.forEach(s => {
         s.x -= 0.3;
         if(s.x < 0) s.x = canvas.width;
     });
 }
 
-// DRAW
+// ================== DRAW ==================
 function draw(){
 
-    // gradient background
+    ctx.save();
+
+    // screen shake
+    if(shake > 0){
+        ctx.translate(
+            Math.random()*shake - shake/2,
+            Math.random()*shake - shake/2
+        );
+        shake *= 0.9;
+    }
+
+    // background
     let grad = ctx.createLinearGradient(0,0,0,720);
     grad.addColorStop(0,"#080a1c");
     grad.addColorStop(1,"#02020a");
     ctx.fillStyle = grad;
-    ctx.fillRect(0,0,480,720);
+    ctx.fillRect(0,0,canvas.width,canvas.height);
 
     // stars
-    ctx.fillStyle="white";
+    ctx.fillStyle = "white";
     stars.forEach(s=>{
         ctx.fillRect(s.x,s.y,s.size,s.size);
     });
@@ -147,41 +195,48 @@ function draw(){
         for(let y=p.top-64;y>-64;y-=60){
             ctx.drawImage(asteroid,p.x,y,70,70);
         }
-        for(let y=p.top+p.gap;y<720;y+=60){
+        for(let y=p.top+p.gap;y<canvas.height;y+=60){
             ctx.drawImage(asteroid,p.x,y,70,70);
         }
     });
 
+    // boost glow
+    if(Date.now() < bird.boostEnd){
+        ctx.fillStyle = "rgba(0,200,255,0.3)";
+        ctx.beginPath();
+        ctx.arc(bird.x, bird.y, 40, 0, Math.PI*2);
+        ctx.fill();
+    }
+
     // player
     let img = (Date.now()<bird.boostEnd)?boosted:ufo;
-    ctx.drawImage(img,bird.x-32,bird.y-32,64,64);
+    ctx.drawImage(img, bird.x-32, bird.y-32, 64, 64);
 
-    // score UI
+    // UI
     ctx.fillStyle="white";
-    ctx.font="20px Arial";
+    ctx.font="18px Arial";
     ctx.fillText("Score: "+score,15,30);
     ctx.fillText("Lvl: "+level,15,55);
+    ctx.fillText("Best: "+bestScore,15,80);
+
+    ctx.textAlign="center";
 
     // MENU
     if(gameState === "menu"){
-        ctx.textAlign="center";
         ctx.font="42px Arial";
         ctx.fillText("UFOX",240,280);
-
         ctx.font="18px Arial";
         ctx.fillText("Tap / Click to Start",240,330);
     }
 
-    // GAME OVER PANEL
+    // GAME OVER
     if(gameState === "gameover"){
         ctx.fillStyle="rgba(0,0,0,0.6)";
         ctx.fillRect(90,240,300,200);
 
         ctx.fillStyle="white";
-        ctx.textAlign="center";
         ctx.font="30px Arial";
         ctx.fillText("GAME OVER",240,300);
-
         ctx.font="18px Arial";
         ctx.fillText("Score: "+score,240,340);
         ctx.fillText("Tap to Restart",240,380);
@@ -189,7 +244,7 @@ function draw(){
 
     // MOBILE BUTTONS
     if(mobileMode){
-        ctx.globalAlpha=0.25;
+        ctx.globalAlpha = 0.25;
 
         ctx.fillStyle="#00aaff";
         ctx.fillRect(380,500,80,80);
@@ -197,16 +252,18 @@ function draw(){
         ctx.fillStyle="#ff4444";
         ctx.fillRect(380,580,80,80);
 
-        ctx.globalAlpha=1;
+        ctx.globalAlpha = 1;
 
         ctx.fillStyle="white";
         ctx.font="14px Arial";
         ctx.fillText("UP",400,545);
         ctx.fillText("DOWN",392,630);
     }
+
+    ctx.restore();
 }
 
-// LOOP
+// ================== LOOP ==================
 function loop(){
     update();
     draw();
@@ -214,25 +271,29 @@ function loop(){
 }
 loop();
 
-// CONTROLS
+// ================== CONTROLS ==================
 document.addEventListener("keydown",e=>{
     if(e.key===" ") bird.boostEnd = Date.now()+200;
-    if(e.key==="ArrowUp"||e.key==="w") input=-1;
-    if(e.key==="ArrowDown"||e.key==="s") input=1;
+    if(e.key==="ArrowUp"||e.key==="w") input = -1;
+    if(e.key==="ArrowDown"||e.key==="s") input = 1;
 });
-document.addEventListener("keyup",()=>input=0);
+
+document.addEventListener("keyup",()=>{
+    input = 0;
+});
 
 document.addEventListener("click",()=>{
-    if(gameState==="menu"){
-        gameState="playing";
-    } else if(gameState==="gameover"){
+    if(gameState === "menu"){
+        gameState = "playing";
+    }
+    else if(gameState === "gameover"){
         resetGame();
-        gameState="playing";
+        gameState = "playing";
     }
     bird.boostEnd = Date.now()+200;
 });
 
-// MOBILE
+// ================== MOBILE ==================
 canvas.addEventListener("touchstart",e=>{
     mobileMode = true;
 
@@ -265,5 +326,6 @@ canvas.addEventListener("touchend",()=>{
     input = 0;
 });
 </script>
+
 </body>
 </html>
