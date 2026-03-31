@@ -236,45 +236,31 @@ document.addEventListener("click",()=>{
 canvas.addEventListener("touchstart",e=>{
     mobileMode = true;
 
-    let touch = e.touches[0];
-    let x = touch.clientX;
-    let y = touch.clientY;
-
-    // convert to canvas coords
     let rect = canvas.getBoundingClientRect();
-    x -= rect.left;
-    y -= rect.top;
+    let touch = e.touches[0];
 
-    // check button area
+    let x = touch.clientX - rect.left;
+    let y = touch.clientY - rect.top;
+
     if(x > 380){
-        if(y < 580){
-            input = -1; // UP
-        } else {
-            input = 1; // DOWN
-        }
+        input = (y < 580) ? -1 : 1;
     }
 
-    // boost
-    bird.boostEnd = Date.now() + 200;
+    bird.boostEnd = Date.now()+200;
 });
 
 canvas.addEventListener("touchmove",e=>{
-    let touch = e.touches[0];
-    let x = touch.clientX;
-    let y = touch.clientY;
-
     let rect = canvas.getBoundingClientRect();
-    x -= rect.left;
-    y -= rect.top;
+    let touch = e.touches[0];
+
+    let x = touch.clientX - rect.left;
+    let y = touch.clientY - rect.top;
 
     if(x > 380){
         input = (y < 580) ? -1 : 1;
     }
 });
 
-canvas.addEventListener("touchend",()=>{
-    input = 0;
-});
 canvas.addEventListener("touchend",()=>{
     input = 0;
 });
