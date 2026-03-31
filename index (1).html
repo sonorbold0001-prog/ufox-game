@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>UFOX Web</title>
+<style>
+body { margin:0; background:black; overflow:hidden; }
+canvas { display:block; margin:auto; touch-action:none; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+canvas.width = 480;
+canvas.height = 720;
+
+// ASSETS
+const ufo = new Image(); ufo.src = "ufo.png";
+const boosted = new Image(); boosted.src = "boosted_ufo.png";
+const asteroid = new Image(); asteroid.src = "astroid.png";
+
+// SOUND
+const music = new Audio("music.mp3");
+music.loop = true;
+document.addEventListener("click", () => music.play(), {once:true});
+
+// CONSTANTS
+const SMOOTH = 0.52;
+const MAX_SPEED = 8;
+const BOOST_MULT = 2;
+
+// PLAYER
+let bird = { x:120, y:360, vel:0, boostEnd:0 };
+
+// INPUT
+let input = 0;
+
+// GAME
+let pipes = [];
+let score = 0;
+let level = 1;
+let gameOver = false;
+
+// BACKGROUND STARS
+let stars = [];
+for(let i=0;i<60;i++){
+    stars.push({
+        x: Math.random()*480,
+        y: Math.random()*720,
+        size: Math.random()*2
+    });
+}
+
+// SPAWN
+function spawnPipe(){
+    let gap = 220 + Math.random()*100;
+    let top = Math.random()*(canvas.height-gap);
+    pipes.push({x:480, top:top, gap:gap, passed:false});
+}
+setInterval(spawnPipe,2200);
+
+// LEVEL
+function updateLevel(){
+    level = 1 + Math.floor(score/10);
+}
+
+// UPDATE
+function update(){
+    if(gameOver) return;
+
+    let now = Date.now();
+    updateLevel();
+
+    let boosting = now < bird.boostEnd;
+
+    let target = input * MAX_SPEED * (boosting ? BOOST_MULT : 1);
+    bird.vel += (target - bird.vel) * SMOOTH;
+    bird.y += bird.vel;
+
+    pipes.forEach(p=>{
+        p.x -= 2.5 + level*0.3;
+
+        if(!p.passed && p.x < bird.x){
+            score++;
+            p.passed=true;
+        }
+
+        if(
+            bird.x > p.x && bird.x < p.x+70 &&
+            (bird.y < p.top || bird.y > p.top+p.gap)
+        ){
+            gameOver=true;
+        }
+    });
+
+    pipes = pipes.filter(p=>p.x>-80);
+
+    if(bird.y<0 || bird.y>720) gameOver=true;
+
+    // stars move
+    stars.forEach(s=>{
+        s.x -= 0.5;
+        if(s.x<0) s.x=480;
+    });
+}
+
+// DRAW
+function draw(){
+    ctx.fillStyle = "#050816";
+    ctx.fillRect(0,0,480,720);
+
+    // stars
+    ctx.fillStyle="white";
+    stars.forEach(s=>{
+        ctx.fillRect(s.x,s.y,s.size,s.size);
+    });
+
+    // pipes
+    pipes.forEach(p=>{
+        for(let y=p.top-64;y>-64;y-=60){
+            ctx.drawImage(asteroid,p.x,y,70,70);
+        }
+        for(let y=p.top+p.gap;y<720;y+=60){
+            ctx.drawImage(asteroid,p.x,y,70,70);
+        }
+    });
+
+    // player
+    let img = (Date.now()<bird.boostEnd)?boosted:ufo;
+    ctx.drawImage(img,bird.x-32,bird.y-32,64,64);
+
+    // UI
+    ctx.fillStyle="white";
+    ctx.font="18px Arial";
+    ctx.fillText("Score: "+score,10,25);
+    ctx.fillText("Lvl: "+level,10,45);
+
+    if(gameOver){
+        ctx.font="40px Arial";
+        ctx.fillText("GAME OVER",100,350);
+    }
+
+    // MOBILE CONTROL
+    ctx.globalAlpha=0.3;
+    ctx.fillRect(380,500,80,180);
+    ctx.globalAlpha=1;
+}
+
+// LOOP
+function loop(){
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+loop();
+
+// CONTROLS
+
+// keyboard
+document.addEventListener("keydown",e=>{
+    if(gameOver) location.reload();
+
+    if(e.key===" ") bird.boostEnd = Date.now()+200;
+    if(e.key==="ArrowUp"||e.key==="w") input=-1;
+    if(e.key==="ArrowDown"||e.key==="s") input=1;
+});
+document.addEventListener("keyup",()=>input=0);
+
+// mobile touch (HOLD control like your original)
+canvas.addEventListener("touchstart",e=>{
+    let y = e.touches[0].clientY;
+    input = (y < window.innerHeight/2)? -1 : 1;
+    bird.boostEnd = Date.now()+200;
+});
+
+canvas.addEventListener("touchmove",e=>{
+    let y = e.touches[0].clientY;
+    input = (y < window.innerHeight/2)? -1 : 1;
+});
+
+canvas.addEventListener("touchend",()=>{
+    input = 0;
+});
+</script>
+</body>
+</html>
