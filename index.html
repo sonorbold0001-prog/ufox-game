@@ -2,9 +2,9 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>UFOX Web</title>
+<title>UFOX</title>
 <style>
-body { margin:0; background:black; overflow:hidden; }
+body { margin:0; background:black; overflow:hidden; font-family:Arial; }
 canvas { display:block; margin:auto; touch-action:none; }
 </style>
 </head>
@@ -34,10 +34,8 @@ const MAX_SPEED = 8;
 const BOOST_MULT = 2.0;
 const BASE_SPEED = 2.5;
 
-// PLAYER
-let bird = { x:120, y:360, vel:0, boostEnd:0 };
-
 // GAME STATE
+let bird = { x:120, y:360, vel:0, boostEnd:0 };
 let pipes = [];
 let input = 0;
 let score = 0;
@@ -46,10 +44,11 @@ let gameState = "menu";
 
 let lastTime = Date.now();
 let startTime = Date.now();
+let mobileMode = false;
 
 // STARS
 let stars = [];
-for(let i=0;i<60;i++){
+for(let i=0;i<80;i++){
     stars.push({
         x: Math.random()*480,
         y: Math.random()*720,
@@ -64,11 +63,6 @@ function spawnPipe(){
     pipes.push({x:480, top:top, gap:gap, passed:false});
 }
 setInterval(spawnPipe,2200);
-
-// LEVEL
-function updateLevel(){
-    level = 1 + Math.floor(score/10);
-}
 
 // RESET
 function resetGame(){
@@ -89,7 +83,7 @@ function update(){
     let delta = (now - lastTime) / 16.67;
     lastTime = now;
 
-    updateLevel();
+    level = 1 + Math.floor(score/10);
 
     let boosting = now < bird.boostEnd;
 
@@ -98,7 +92,6 @@ function update(){
     bird.y += bird.vel * delta;
 
     pipes.forEach(p=>{
-
         let elapsed = (Date.now() - startTime) / 10000;
         let speed = (BASE_SPEED + elapsed) * (0.45 + (level - 1) * 0.2);
 
@@ -119,7 +112,6 @@ function update(){
         ){
             gameState = "gameover";
         }
-
     });
 
     pipes = pipes.filter(p=>p.x>-80);
@@ -129,7 +121,7 @@ function update(){
     }
 
     stars.forEach(s=>{
-        s.x -= 0.5;
+        s.x -= 0.3;
         if(s.x < 0) s.x = canvas.width;
     });
 }
@@ -137,8 +129,12 @@ function update(){
 // DRAW
 function draw(){
 
-    ctx.fillStyle = "#050816";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
+    // gradient background
+    let grad = ctx.createLinearGradient(0,0,0,720);
+    grad.addColorStop(0,"#080a1c");
+    grad.addColorStop(1,"#02020a");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0,0,480,720);
 
     // stars
     ctx.fillStyle="white";
@@ -160,26 +156,53 @@ function draw(){
     let img = (Date.now()<bird.boostEnd)?boosted:ufo;
     ctx.drawImage(img,bird.x-32,bird.y-32,64,64);
 
-    // UI
+    // score UI
     ctx.fillStyle="white";
-    ctx.font="18px Arial";
-    ctx.fillText("Score: "+score,10,25);
-    ctx.fillText("Lvl: "+level,10,45);
+    ctx.font="20px Arial";
+    ctx.fillText("Score: "+score,15,30);
+    ctx.fillText("Lvl: "+level,15,55);
 
     // MENU
     if(gameState === "menu"){
-        ctx.font="30px Arial";
-        ctx.fillText("UFOX",180,300);
+        ctx.textAlign="center";
+        ctx.font="42px Arial";
+        ctx.fillText("UFOX",240,280);
+
         ctx.font="18px Arial";
-        ctx.fillText("Click to Start",170,350);
+        ctx.fillText("Tap / Click to Start",240,330);
     }
 
-    // GAME OVER
+    // GAME OVER PANEL
     if(gameState === "gameover"){
+        ctx.fillStyle="rgba(0,0,0,0.6)";
+        ctx.fillRect(90,240,300,200);
+
+        ctx.fillStyle="white";
+        ctx.textAlign="center";
         ctx.font="30px Arial";
-        ctx.fillText("GAME OVER",140,300);
+        ctx.fillText("GAME OVER",240,300);
+
         ctx.font="18px Arial";
-        ctx.fillText("Click to Restart",150,350);
+        ctx.fillText("Score: "+score,240,340);
+        ctx.fillText("Tap to Restart",240,380);
+    }
+
+    // MOBILE BUTTONS
+    if(mobileMode){
+        ctx.globalAlpha=0.25;
+
+        ctx.fillStyle="#00aaff";
+        ctx.fillRect(380,500,80,80);
+
+        ctx.fillStyle="#ff4444";
+        ctx.fillRect(380,580,80,80);
+
+        ctx.globalAlpha=1;
+
+        ctx.fillStyle="white";
+        ctx.font="14px Arial";
+        ctx.fillText("UP",400,545);
+        ctx.fillText("DOWN",392,630);
     }
 }
 
@@ -197,30 +220,45 @@ document.addEventListener("keydown",e=>{
     if(e.key==="ArrowUp"||e.key==="w") input=-1;
     if(e.key==="ArrowDown"||e.key==="s") input=1;
 });
-
 document.addEventListener("keyup",()=>input=0);
 
 document.addEventListener("click",()=>{
-    if(gameState === "menu"){
-        gameState = "playing";
-    }
-    else if(gameState === "gameover"){
+    if(gameState==="menu"){
+        gameState="playing";
+    } else if(gameState==="gameover"){
         resetGame();
-        gameState = "playing";
+        gameState="playing";
     }
     bird.boostEnd = Date.now()+200;
 });
 
 // MOBILE
 canvas.addEventListener("touchstart",e=>{
-    let y = e.touches[0].clientY;
-    input = (y < window.innerHeight/2)? -1 : 1;
+    mobileMode = true;
+
+    let rect = canvas.getBoundingClientRect();
+    let touch = e.touches[0];
+
+    let x = touch.clientX - rect.left;
+    let y = touch.clientY - rect.top;
+
+    if(x > 380){
+        input = (y < 580) ? -1 : 1;
+    }
+
     bird.boostEnd = Date.now()+200;
 });
 
 canvas.addEventListener("touchmove",e=>{
-    let y = e.touches[0].clientY;
-    input = (y < window.innerHeight/2)? -1 : 1;
+    let rect = canvas.getBoundingClientRect();
+    let touch = e.touches[0];
+
+    let x = touch.clientX - rect.left;
+    let y = touch.clientY - rect.top;
+
+    if(x > 380){
+        input = (y < 580) ? -1 : 1;
+    }
 });
 
 canvas.addEventListener("touchend",()=>{
