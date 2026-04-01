@@ -60,7 +60,8 @@ let particles = [];
 let input = 0;
 let score = 0;
 let bestScore = localStorage.getItem("ufox_best") || 0;
-
+let keys = {};
+    
 let gameState = "menu";
 let lastTime = Date.now();
 let startTime = Date.now();
@@ -137,6 +138,17 @@ function update(){
     bird.vel += (target - bird.vel) * 0.18;
     bird.vel *= 0.98;
     bird.y += bird.vel * delta;
+    
+    // ===== INPUT HANDLING =====
+if(keys["arrowup"] || keys["w"]){
+    input = -1;
+}
+else if(keys["arrowdown"] || keys["s"]){
+    input = 1;
+}
+else{
+    input = 0;
+}
 
     // BOOST TRAIL
     if(boosting){
@@ -277,14 +289,17 @@ document.addEventListener("click",()=>{
     bird.boostEnd = Date.now()+200;
 });
 
-document.addEventListener("keydown",e=>{
-    if(e.key==="ArrowUp"||e.key==="w") input=-1;
-    if(e.key==="ArrowDown"||e.key==="s") input=1;
-    if(e.key===" ") bird.boostEnd = Date.now()+200;
+document.addEventListener("keydown", e=>{
+    keys[e.key.toLowerCase()] = true;
+
+    if(e.key === " "){
+        bird.boostEnd = Date.now()+200;
+    }
 });
 
-document.addEventListener("keyup",()=>input=0);
-
+document.addEventListener("keyup", e=>{
+    keys[e.key.toLowerCase()] = false;
+});
 // MOBILE
 canvas.addEventListener("touchstart",e=>{
     mobileMode=true;
