@@ -9,16 +9,8 @@
 <meta name="theme-color" content="#000000">
 
 <style>
-body {
-    margin:0;
-    background:black;
-    overflow:hidden;
-    font-family:Arial;
-}
-canvas {
-    display:block;
-    touch-action:none;
-}
+body { margin:0; background:black; overflow:hidden; font-family:Arial; }
+canvas { display:block; touch-action:none; }
 </style>
 </head>
 <body>
@@ -46,23 +38,15 @@ const asteroid = new Image(); asteroid.src = "astroid.png";
 const music = new Audio("music.mp3");
 music.loop = true;
 
-document.addEventListener("click", () => {
-    music.play();
-}, {once:true});
+document.addEventListener("click", () => music.play(), {once:true});
 
-// auto pause/resume
 document.addEventListener("visibilitychange", () => {
-    if(document.hidden){
-        music.pause();
-    } else if(gameState === "playing"){
-        music.play();
-    }
+    if(document.hidden) music.pause();
+    else if(gameState==="playing") music.play();
 });
 
-window.addEventListener("blur", () => music.pause());
-window.addEventListener("focus", () => {
-    if(gameState === "playing") music.play();
-});
+window.addEventListener("blur", ()=>music.pause());
+window.addEventListener("focus", ()=>{ if(gameState==="playing") music.play(); });
 
 // ===== CONSTANTS =====
 const MAX_SPEED = 8;
@@ -72,6 +56,7 @@ const BASE_SPEED = 2.5;
 // ===== STATE =====
 let bird = { x:120, y:300, vel:0, boostEnd:0 };
 let pipes = [];
+let particles = [];
 let input = 0;
 let score = 0;
 let bestScore = localStorage.getItem("ufox_best") || 0;
@@ -94,6 +79,19 @@ for(let i=0;i<100;i++){
     });
 }
 
+// ===== PARTICLES =====
+function spawnParticles(x,y,count,color){
+    for(let i=0;i<count;i++){
+        particles.push({
+            x,y,
+            vx:(Math.random()-0.5)*6,
+            vy:(Math.random()-0.5)*6,
+            life:1,
+            color
+        });
+    }
+}
+
 // ===== SPAWN =====
 function spawnPipe(){
     let gap = canvas.height * 0.3;
@@ -107,6 +105,7 @@ function resetGame(){
     bird.y = canvas.height/2;
     bird.vel = 0;
     pipes = [];
+    particles = [];
     score = 0;
     startTime = Date.now();
 }
@@ -117,7 +116,8 @@ function gameOver(){
         bestScore = score;
         localStorage.setItem("ufox_best", bestScore);
     }
-    shake = 10;
+    spawnParticles(bird.x,bird.y,40,"red");
+    shake = 12;
     gameState = "gameover";
 }
 
@@ -132,25 +132,28 @@ function update(){
     floatTime += 0.05 * delta;
 
     let boosting = now < bird.boostEnd;
-
     let target = input * MAX_SPEED * (boosting ? BOOST_MULT : 1);
 
-    // ultra smooth motion
     bird.vel += (target - bird.vel) * 0.18;
     bird.vel *= 0.98;
     bird.y += bird.vel * delta;
 
+    // BOOST TRAIL
+    if(boosting){
+        spawnParticles(bird.x,bird.y+10,2,"cyan");
+    }
+
     pipes.forEach(p=>{
-        let elapsed = (Date.now() - startTime)/10000;
+        let elapsed = (Date.now()-startTime)/10000;
         let speed = (BASE_SPEED + elapsed) * 1.2;
 
-        // smooth pipe velocity
         p.vx = p.vx || speed;
-        p.vx += (speed - p.vx) * 0.1;
+        p.vx += (speed - p.vx)*0.1;
         p.x -= p.vx * delta;
 
         if(!p.passed && p.x < bird.x){
             score++;
+            spawnParticles(p.x,p.top+50,15,"yellow");
             p.passed = true;
         }
 
@@ -164,7 +167,7 @@ function update(){
 
     pipes = pipes.filter(p=>p.x>-80);
 
-    if(bird.y < 0 || bird.y > canvas.height){
+    if(bird.y<0 || bird.y>canvas.height){
         gameOver();
     }
 
@@ -172,36 +175,37 @@ function update(){
         s.x -= 0.3;
         if(s.x<0) s.x = canvas.width;
     });
+
+    // update particles
+    particles.forEach(p=>{
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.02;
+    });
+    particles = particles.filter(p=>p.life>0);
 }
 
 // ===== DRAW =====
 function draw(){
     ctx.save();
 
-    // screen shake
     if(shake>0){
         ctx.translate(Math.random()*shake-shake/2,Math.random()*shake-shake/2);
         shake*=0.9;
     }
 
-    // camera follow
-    let camY = (bird.y - canvas.height/2) * 0.05;
-    ctx.translate(0, -camY);
+    let camY = (bird.y - canvas.height/2)*0.05;
+    ctx.translate(0,-camY);
 
-    // background
     let g = ctx.createLinearGradient(0,0,0,canvas.height);
     g.addColorStop(0,"#080a1c");
     g.addColorStop(1,"#02020a");
     ctx.fillStyle=g;
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    // stars
     ctx.fillStyle="white";
-    stars.forEach(s=>{
-        ctx.fillRect(s.x,s.y,s.size,s.size);
-    });
+    stars.forEach(s=>ctx.fillRect(s.x,s.y,s.size,s.size));
 
-    // pipes
     pipes.forEach(p=>{
         for(let y=p.top-64;y>-64;y-=60){
             ctx.drawImage(asteroid,p.x,y,70,70);
@@ -211,20 +215,24 @@ function draw(){
         }
     });
 
-    // player float
-    let floatOffset = Math.sin(floatTime) * 6;
+    // PARTICLES
+    particles.forEach(p=>{
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x,p.y,4,4);
+        ctx.globalAlpha = 1;
+    });
+
+    let floatOffset = Math.sin(floatTime)*6;
     let img = (Date.now()<bird.boostEnd)?boosted:ufo;
 
-    // rotation
     ctx.save();
-    ctx.translate(bird.x, bird.y);
-    ctx.rotate(bird.vel * 0.05);
-    ctx.drawImage(img, -32, -32 + floatOffset, 64, 64);
+    ctx.translate(bird.x,bird.y);
+    ctx.rotate(bird.vel*0.05);
+    ctx.drawImage(img,-32,-32+floatOffset,64,64);
     ctx.restore();
 
-    // UI
     ctx.fillStyle="white";
-    ctx.font="18px Arial";
     ctx.fillText("Score: "+score,15,30);
     ctx.fillText("Best: "+bestScore,15,55);
 
@@ -232,9 +240,9 @@ function draw(){
 
     if(gameState==="menu"){
         ctx.font="40px Arial";
-        ctx.fillText("UFOX",canvas.width/2,canvas.height/2-20);
+        ctx.fillText("UFOX",canvas.width/2,canvas.height/2);
         ctx.font="18px Arial";
-        ctx.fillText("Tap to Start",canvas.width/2,canvas.height/2+20);
+        ctx.fillText("Click / Tap to Start",canvas.width/2,canvas.height/2+40);
     }
 
     if(gameState==="gameover"){
@@ -242,11 +250,9 @@ function draw(){
         ctx.fillText("Tap to Restart",canvas.width/2,canvas.height/2+40);
     }
 
-    // mobile buttons
     if(mobileMode){
-        let bx = canvas.width - 100;
-        let by = canvas.height - 200;
-
+        let bx = canvas.width-100;
+        let by = canvas.height-200;
         ctx.globalAlpha=0.3;
         ctx.fillRect(bx,by,80,80);
         ctx.fillRect(bx,by+80,80,80);
@@ -266,47 +272,47 @@ loop();
 
 // ===== CONTROLS =====
 document.addEventListener("click",()=>{
-    if(gameState==="menu"){
-        gameState="playing";
-    } else if(gameState==="gameover"){
-        resetGame();
-        gameState="playing";
-    }
+    if(gameState==="menu") gameState="playing";
+    else if(gameState==="gameover"){ resetGame(); gameState="playing"; }
     bird.boostEnd = Date.now()+200;
 });
+
+document.addEventListener("keydown",e=>{
+    if(e.key==="ArrowUp"||e.key==="w") input=-1;
+    if(e.key==="ArrowDown"||e.key==="s") input=1;
+    if(e.key===" ") bird.boostEnd = Date.now()+200;
+});
+
+document.addEventListener("keyup",()=>input=0);
 
 // MOBILE
 canvas.addEventListener("touchstart",e=>{
-    mobileMode = true;
+    mobileMode=true;
+    let rect=canvas.getBoundingClientRect();
+    let t=e.touches[0];
+    let x=t.clientX-rect.left;
+    let y=t.clientY-rect.top;
 
-    let rect = canvas.getBoundingClientRect();
-    let t = e.touches[0];
-
-    let x = t.clientX - rect.left;
-    let y = t.clientY - rect.top;
-
-    if(x > canvas.width - 100){
-        input = (y < canvas.height - 120) ? -1 : 1;
+    if(x>canvas.width-100){
+        input=(y<canvas.height-120)?-1:1;
     }
-
-    bird.boostEnd = Date.now()+200;
+    bird.boostEnd=Date.now()+200;
 });
 
 canvas.addEventListener("touchmove",e=>{
-    let rect = canvas.getBoundingClientRect();
-    let t = e.touches[0];
+    let rect=canvas.getBoundingClientRect();
+    let t=e.touches[0];
+    let x=t.clientX-rect.left;
+    let y=t.clientY-rect.top;
 
-    let x = t.clientX - rect.left;
-    let y = t.clientY - rect.top;
-
-    if(x > canvas.width - 100){
-        input = (y < canvas.height - 120) ? -1 : 1;
+    if(x>canvas.width-100){
+        input=(y<canvas.height-120)?-1:1;
     }
 });
 
 canvas.addEventListener("touchend",()=>input=0);
 
-// ===== SERVICE WORKER =====
+// SERVICE WORKER
 if("serviceWorker" in navigator){
     navigator.serviceWorker.register("sw.js");
 }
