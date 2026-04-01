@@ -3,7 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <title>UFOX</title>
-
+    
+// ===== AUTO PAUSE / RESUME MUSIC =====
+document.addEventListener("visibilitychange", () => {
+    if(document.hidden){
+        music.pause();
+    } else {
+        // only resume if game is playing
+        if(gameState === "playing"){
+            music.play();
+        }
+    }
+});
+    
 <!-- MOBILE FULLSCREEN -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
