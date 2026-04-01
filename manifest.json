@@ -5,6 +5,8 @@
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
+  "orientation": "portrait",
+  "description": "UFOX - arcade space survival game",
   "icons": [
     {
       "src": "icon-192.png",
