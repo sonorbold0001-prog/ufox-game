@@ -3,23 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>UFOX</title>
-    
-// ===== AUTO PAUSE / RESUME MUSIC =====
-document.addEventListener("visibilitychange", () => {
-    if(document.hidden){
-        music.pause();
-    } else {
-        // only resume if game is playing
-        if(gameState === "playing"){
-            music.play();
-        }
-    }
-});
-    
-<!-- MOBILE FULLSCREEN -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
-<!-- PWA -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#000000">
 
@@ -41,7 +26,7 @@ canvas {
 <canvas id="game"></canvas>
 
 <script>
-// ===== FULLSCREEN CANVAS =====
+// ===== SETUP =====
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
@@ -60,10 +45,26 @@ const asteroid = new Image(); asteroid.src = "astroid.png";
 // ===== SOUND =====
 const music = new Audio("music.mp3");
 music.loop = true;
-document.addEventListener("click", () => music.play(), {once:true});
+
+document.addEventListener("click", () => {
+    music.play();
+}, {once:true});
+
+// auto pause/resume
+document.addEventListener("visibilitychange", () => {
+    if(document.hidden){
+        music.pause();
+    } else if(gameState === "playing"){
+        music.play();
+    }
+});
+
+window.addEventListener("blur", () => music.pause());
+window.addEventListener("focus", () => {
+    if(gameState === "playing") music.play();
+});
 
 // ===== CONSTANTS =====
-const SMOOTH = 0.52;
 const MAX_SPEED = 8;
 const BOOST_MULT = 2.0;
 const BASE_SPEED = 2.5;
@@ -73,7 +74,6 @@ let bird = { x:120, y:300, vel:0, boostEnd:0 };
 let pipes = [];
 let input = 0;
 let score = 0;
-let level = 1;
 let bestScore = localStorage.getItem("ufox_best") || 0;
 
 let gameState = "menu";
@@ -82,6 +82,7 @@ let startTime = Date.now();
 
 let mobileMode = false;
 let shake = 0;
+let floatTime = 0;
 
 // ===== STARS =====
 let stars = [];
@@ -128,19 +129,25 @@ function update(){
     let delta = (now - lastTime) / 16.67;
     lastTime = now;
 
-    level = 1 + Math.floor(score/10);
+    floatTime += 0.05 * delta;
 
     let boosting = now < bird.boostEnd;
 
     let target = input * MAX_SPEED * (boosting ? BOOST_MULT : 1);
-    bird.vel += (target - bird.vel) * SMOOTH;
+
+    // ultra smooth motion
+    bird.vel += (target - bird.vel) * 0.18;
+    bird.vel *= 0.98;
     bird.y += bird.vel * delta;
 
     pipes.forEach(p=>{
         let elapsed = (Date.now() - startTime)/10000;
-        let speed = (BASE_SPEED + elapsed) * (0.45 + (level-1)*0.2);
+        let speed = (BASE_SPEED + elapsed) * 1.2;
 
-        p.x -= speed * delta;
+        // smooth pipe velocity
+        p.vx = p.vx || speed;
+        p.vx += (speed - p.vx) * 0.1;
+        p.x -= p.vx * delta;
 
         if(!p.passed && p.x < bird.x){
             score++;
@@ -171,12 +178,17 @@ function update(){
 function draw(){
     ctx.save();
 
+    // screen shake
     if(shake>0){
         ctx.translate(Math.random()*shake-shake/2,Math.random()*shake-shake/2);
         shake*=0.9;
     }
 
-    // BG
+    // camera follow
+    let camY = (bird.y - canvas.height/2) * 0.05;
+    ctx.translate(0, -camY);
+
+    // background
     let g = ctx.createLinearGradient(0,0,0,canvas.height);
     g.addColorStop(0,"#080a1c");
     g.addColorStop(1,"#02020a");
@@ -199,9 +211,16 @@ function draw(){
         }
     });
 
-    // player
+    // player float
+    let floatOffset = Math.sin(floatTime) * 6;
     let img = (Date.now()<bird.boostEnd)?boosted:ufo;
-    ctx.drawImage(img,bird.x-32,bird.y-32,64,64);
+
+    // rotation
+    ctx.save();
+    ctx.translate(bird.x, bird.y);
+    ctx.rotate(bird.vel * 0.05);
+    ctx.drawImage(img, -32, -32 + floatOffset, 64, 64);
+    ctx.restore();
 
     // UI
     ctx.fillStyle="white";
@@ -223,7 +242,7 @@ function draw(){
         ctx.fillText("Tap to Restart",canvas.width/2,canvas.height/2+40);
     }
 
-    // MOBILE BUTTONS
+    // mobile buttons
     if(mobileMode){
         let bx = canvas.width - 100;
         let by = canvas.height - 200;
